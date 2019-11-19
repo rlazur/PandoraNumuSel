@@ -5,13 +5,19 @@ Created on Wed Oct  9 13:42:05 2019
 
 @author: ryan
 """
+import codes
+
 import numpy as np
 import matplotlib.pyplot as plt
+
 plt.ioff()
-plt.rcParams.update({'font.size': 25})
-plt.rcParams.update({'legend.fontsize': 19})
-plt.rcParams['axes.facecolor']='white'
-plt.rcParams['savefig.facecolor']='silver'
+params = {
+        'font.size': 20,
+        'legend.fontsize': 19,
+        'axes.facecolor' : 'white',
+        'savefig.facecolor' : 'silver'
+        }
+plt.rcParams.update(params)
 from matplotlib import gridspec
 from datetime import datetime
 
@@ -20,17 +26,22 @@ start_time = datetime.now()
 #see the POTnormalizeation.pynb script to derive these
 RUN = 3 #run3 data
 # https://github.com/ubneutrinos/searchingfornues/wiki/NTuple-location
-scale_NU = 0.0107 
-scale_EXT = 0.0718
-scale_DIRT = 0.0342 
-POT = 9.06e+18
+scale_NU = 0.00787 
+scale_EXT = 0.0198
+scale_DIRT = 0.0173
+POT = 5.648e18
 
 AVx = [-1.55,254.8]
 AVy = [-115.53, 117.47]
 AVz = [0.1, 1036.9]
+#other choice
 FVx = [AVx[0]+10,AVx[1]-10]
 FVy = [AVy[0]+10,AVy[1]-10]
 FVz = [AVz[0]+10,AVz[1]-50]
+#updated for SCE
+FVx1 = [5,251]
+FVy1 = [-110,110]
+FVz1 = [20,986]
 
 #how far from the edges the containment cut is
 CD = 25 #cm
@@ -63,13 +74,14 @@ def get_histerrs(df,var,B,scale):
     for i in range(len(B)-1):
         binmin = B[i]
         binmax = B[i+1]
-        query = '{} >= @binmin and {} < @binmax'.format(var,var)
-        df_bin = df.query(query)
-        if 'weightSpline' in df.keys():
-            bin_weights[i] = np.array(df_bin['weightSpline'])*scale
-        else:
-            bin_weights[i] = np.ones(df_bin.shape[0])*scale
-        #square weights
+        bincut = '{} >= @binmin and {} < @binmax'.format(var,var)
+        df_bin = df.query(bincut)
+#        if 'weightSpline' in df.keys():
+#            bin_weights[i] = np.array(df_bin['weightSpline'])*scale
+#        else:
+#            bin_weights[i] = np.ones(df_bin.shape[0])*scale
+        bin_weights[i] = np.ones(df_bin.shape[0])*scale
+    #square weights and sum for each bin
     sw2s = [np.sum(weights**2) for weights in bin_weights]
     errs = np.sqrt(np.array(sw2s))
     return errs
@@ -91,44 +103,13 @@ def prep_hist(df,scale,VAR,BINEDGES):
     else:
         df_cut = df.query('{} >= @B0 and {} <= @B1'.format(VAR,VAR))[[VAR]]
         weights = np.ones(df_cut.shape[0])*scale
-    print(df_cut[VAR].shape)
     xstacked = list(df_cut[VAR])
-    print(len(xstacked))
+
     return list(xstacked),list(weights)
 
-def fig_names(var,cuts,version,time_stamp=False):
-    '''
-    returns an appropriate save and title name given input
-    can optionally put a timestamp on the name
-    '''
-    if cuts != False:
-        cuts = cuts.replace('slice and topo06 and muon','basic')
-        if time_stamp:
-            ts = str(start_time.month)+str(start_time.day)+str(start_time.year)+'_'+str(start_time.hour)+str(start_time.minute)+str(start_time.second)
-        else:
-            ts = ''
-        if "FINAL" in version.upper() or  "OFFICIAL" in version.upper():
-            title_name = "MicroBooNE Preliminary, {} POT".format(POT)
-            save_name = "/home/ryan/Pictures/HEPPA/MicroBooNE/eLEE/Run3/{}_{}_dataMCcomp{}{}.pdf".format(var,cuts,ts,version)
-        else:
-            title_name = "{}, {} cuts, Data-MC Comparison {}".format(var,cuts,version)
-            save_name = "plots/{}_{}_dataMCcomp{}{}.pdf".format(var,cuts,ts,version)
-        
-    else:
-        if time_stamp:
-            ts = str(start_time.month)+str(start_time.day)+str(start_time.year)+'_'+str(start_time.hour)+str(start_time.minute)+str(start_time.second)
-        else:
-            ts = ''
-        if "FINAL" in version.upper() or  "OFFICIAL" in version.upper():
-            title_name = "MicroBooNE Preliminary, {} POT".format(POT)
-            save_name = "/home/ryan/Pictures/HEPPA/MicroBooNE/eLEE/{}_{}_dataMCcomp{}{}.pdf".format(var,"nocuts",ts,version)
-        else:
-            title_name = "{}, {} cuts, Run 3, 1e19, Data-MC Comparison {}".format(var,"No",version)
-            save_name = "plots/{}_{}_Run31e19dataMCcomp{}{}.pdf".format(var,"nocuts",ts,version)
-
-    return save_name,title_name
-
-def comp_DATAMC(DFs, VAR, BINEDGES, lw=25, take_longest=True, cuts=False, version=''):
+def comp_DATAMC(DFs, VAR, cuts=False, kind='category', 
+                take_longest=True, title='MicroBooNE Preliminary {} POT'.format(POT), xlabel = '',
+                **params):
     '''
     This function builds+saves a data-MC comparison histogram
     It needs a dictionary containing all the dataframes made using uproot
@@ -140,13 +121,40 @@ def comp_DATAMC(DFs, VAR, BINEDGES, lw=25, take_longest=True, cuts=False, versio
         implement spline weights
         
     '''
-    integral = 0
+    try:
+        BINEDGES = np.linspace(params['range'][0], params['range'][1], params['bins'] + 1)
+    except:
+        print("could not find range and/or bins to build user-defined BINEDGES")
+        print("will use default BINEDGES of (0,0.1,...,1)")
+        BINEDGES = np.linspace(0,1,11)
+        
     BINCENTERS = 0.5*(BINEDGES[1:]+BINEDGES[:-1])
-    hist_dict = {'xstacked': [], #list of lists of data correlated with WEIGHTS and LABELS (lists)
-                 'ystacked_vals': np.zeros(BINCENTERS.size), #height of MC data in each bin
-                 'LABELS': [], #labels for each component of xstacked (strings)
-                 'WEIGHTS': [], #weights of each component of xstacked (lists)
-                 'ERRS': np.zeros(BINCENTERS.size) #to calculate scaled MC uncertainty on each bin
+    hist_dict = {'MC':{
+                    'vals': [], #list of lists of data correlated with WEIGHTS and LABELS (lists)
+                    'errs': np.zeros(BINCENTERS.size), #to calculate scaled MC uncertainty on each bin
+                    'weights': [], #weights of each component of xstacked (lists)
+                    'labels': [], #labels for each component of xstacked (strings)
+                    'colors': [] #color codes for each cateogry
+                    
+                    },
+                'EXT':{
+                    'vals': [], #list of external data
+                    'errs': np.zeros(BINCENTERS.size), #errors on each bin
+                    'weights': [], # weights for plt histogram fn
+                    'label': [] #label for EXT sample
+                    },
+                'DIRT':{
+                    'vals': [], #list of external data
+                    'errs': np.zeros(BINCENTERS.size), #errors on each bin
+                    'weights': [], # weights for plt histogram fn
+                    'label': [], # label for DIRT sample
+                    'color': ["xkcd:dirt brown"] # color for DIRT sample
+                        },
+                'DATA':{
+                    'vals': [], #list of data
+                    'errs': np.zeros(BINCENTERS.size), # counting error for data
+                    'label': []
+                    }
                  }
     for label in DFs:
     #loop through and pull from each dataframe
@@ -164,94 +172,173 @@ def comp_DATAMC(DFs, VAR, BINEDGES, lw=25, take_longest=True, cuts=False, versio
             #there are certain things particular to each datatype
             if label == 'DIRT':
                 scale = scale_DIRT
-            if label == 'EXT':
-                scale = scale_EXT
-            if label == 'NU':
-                scale = scale_NU
-            if CATS[0] in DFs[label].keys():
-            #further categorization of neutrino MC sample possible
-            #this categorization is defined by a list defined globally 
-            #this case gets treated a bit differently then the above cases
-                for cat in CATS:
-                    try:
-                        print('prepping {}...'.format(cat))
-                        df_cat = df.query(cat)
-                        #put the cat in the histogram prepper
-                        x,w = prep_hist(df_cat,scale,VAR,BINEDGES)
-                        errs = get_histerrs(df_cat,VAR,BINEDGES,scale)
-                        hist_dict['xstacked'].append(x)
-                        hist_dict['WEIGHTS'].append(w)
-                        hist_dict['ERRS'] += errs
-                        hist_dict['LABELS'].append(cat + ': ' + str(round(len(x)*scale)))
-                        if cat == 'NUMUCC':
-                            integral += len(x)
-                    except:
-                        print('{} not found in {}.\n DANGER: POTENTIAL DOUBLE COUNTING OR UNDERCOUNTING'.format(cat,label))
-            elif scale:
-            #this will run if it's a dataset without categories
                 print('prepping {}...'.format(label))
                 x,w = prep_hist(df,scale,VAR,BINEDGES)
                 errs = get_histerrs(df,VAR,BINEDGES,scale)
-                hist_dict['xstacked'].append(x)
-                hist_dict['WEIGHTS'].append(w)
-                hist_dict['ERRS'] += errs
-                hist_dict['LABELS'].append(label + ': ' + str(round(len(x)*scale)))   
-            else:
-                print("SCALE UNKNOWN FOR {} SAMPLE".format(label))
-                
+                hist_dict['DIRT']['vals'].append(x)
+                hist_dict['DIRT']['weights'].append(w)
+                hist_dict['DIRT']['errs'] += errs
+                hist_dict['DIRT']['label'].append(label + ': ' + str(round(len(x)*scale)))
+            if label == 'EXT':
+                scale = scale_EXT
+                print('prepping {}...'.format(label))
+                x,w = prep_hist(df,scale,VAR,BINEDGES)
+                errs = get_histerrs(df,VAR,BINEDGES,scale)
+                hist_dict['EXT']['vals'].append(x)
+                hist_dict['EXT']['weights'].append(w)
+                hist_dict['EXT']['errs'] += errs
+                hist_dict['EXT']['label'].append(label + ': ' + str(round(len(x)*scale))) 
+            if label == 'NU':
+                scale = scale_NU
+                if kind == 'category':
+                    #get dictionary of each category count
+                    unique, counts = np.unique(df['category'], return_counts=True)
+                    cat_totals = dict(zip(unique,counts))
+                #separate by category
+                    for cat in codes.category_labels:
+                        if (cat in cat_totals.keys()):
+                        #only go through this if the category exists
+                            print('prepping {}...'.format(codes.category_labels[cat]))
+                            df_cat = df.query('category == {}'.format(cat))
+                            #put the cat in the histogram prepper
+                            x,w = prep_hist(df_cat,scale,VAR,BINEDGES)
+                            errs = get_histerrs(df_cat,VAR,BINEDGES,scale)
+                            hist_dict['MC']['vals'].append(x)
+                            hist_dict['MC']['weights'].append(w)
+                            hist_dict['MC']['errs'] = np.sqrt(errs**2 + hist_dict['MC']['errs']**2)
+                            hist_dict['MC']['labels'].append(codes.category_labels[cat] + ': ' + str(round(len(x)*scale)))
+                            hist_dict['MC']['colors'].append(codes.category_colors[cat])
+                else:
+                #don't subserate MC overlay sample
+                    print('prepping {}...'.format(label))
+                    x,w = prep_hist(df,scale,VAR,BINEDGES)
+                    errs = get_histerrs(df,VAR,BINEDGES,scale)
+                    hist_dict['vals'].append(x)
+                    hist_dict['weights'].append(w)
+                    hist_dict['errs'] += errs
+                    hist_dict['label'].append(label + ': ' + str(round(len(x)*scale)))
+                    hist_dict['colors'].append("xkcd:purple")
+    
         elif label == 'DATA':
             #a list of the values of each bin defined by BINEDGES
-            data_bin_vals = get_histvals(df,VAR,BINEDGES)
-            data_errs = np.sqrt(np.array(data_bin_vals)) #counting error
+            hist_dict['DATA']['vals'] = get_histvals(df,VAR,BINEDGES)
+            hist_dict['DATA']['errs'] = np.sqrt(np.array(hist_dict['DATA']['vals'])) #counting error
             
-            
-#    print("weight: {}".format(hist_dict['WEIGHTS'][0][0]))
-#    print("label: {}".format(hist_dict['LABELS'][0]))
-#    print("weight: {}".format(hist_dict['WEIGHTS'][1][0]))
-#    print("label: {}".format(hist_dict['LABELS'][1]))
-#    print("weight: {}".format(hist_dict['WEIGHTS'][2][0]))
-#    print("label: {}".format(hist_dict['LABELS'][2]))
-#    print("weight: {}".format(hist_dict['WEIGHTS'][3][0]))
-#    print("label: {}".format(hist_dict['LABELS'][3]))
-    print("cuts: {}".format(cuts))
-    
-    print("integral of green and red: {}".format(integral))
+    for key in hist_dict:
+        print(hist_dict[key]['errs'])
     
     #################################
     ##DATA-MC PLOT
-    fig = plt.figure(figsize=(13,13))
+    fig = plt.figure(figsize=(10,8))
+    plt.ion()
     fig.patch.set_facecolor('silver')
     gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
-    save_name,title_name = fig_names(VAR,cuts,version,time_stamp=False)
+    
     axes0 = plt.subplot(gs[0])
-    cum_ystacked_vals,_,_ = axes0.hist(hist_dict['xstacked'],bins=BINEDGES,histtype='stepfilled',label=hist_dict['LABELS'],weights=hist_dict['WEIGHTS'],stacked=True,alpha=0.7)
-    #bin vals is an array of arrays, each array gives the cumulative bin heights of each hist
-    ystacked_vals = cum_ystacked_vals[-1]
-    axes0.errorbar(BINCENTERS,data_bin_vals,yerr=data_errs,fmt='o',color='k',markersize=5,label='data: {}'.format(np.sum(data_bin_vals)))
-    axes0.errorbar(BINCENTERS,ystacked_vals,yerr=hist_dict['ERRS'],lw=lw,fmt='_k',ecolor='grey',alpha=0.4,fillstyle='full')
-    axes0.legend()
+    #first build up the MC histogram (MCoverlay + DIRT)
+    MC_ystacked_vals,_,_ = axes0.hist(
+            hist_dict['MC']['vals'] + hist_dict['DIRT']['vals'],
+            label = hist_dict['MC']['labels'] + hist_dict['DIRT']['label'],
+            weights = hist_dict['MC']['weights'] + hist_dict['DIRT']['weights'],
+            color = hist_dict['MC']['colors'] + hist_dict['DIRT']['color'],
+            histtype = 'stepfilled', stacked = True,
+            **params
+            )
+    #return from .hist gives list of lists for each stacked hist
+    #we just want the last (cumulative) one
+    MC_ystacked_vals = MC_ystacked_vals[-1]
+    #then add the hatched EXT hist on top
+    EXT_ystacked_vals,_,_ = axes0.hist(
+            hist_dict['EXT']['vals'],
+            label = 'EXT',
+            weights = hist_dict['EXT']['weights'],
+            color = 'white',
+            hatch = "//",
+            bottom = MC_ystacked_vals,
+            **params
+            )
+    
+    #make big list of all the plotted values and their weights
+    tot_vals = np.concatenate([np.concatenate(hist_dict['MC']['vals']), 
+                               np.concatenate(hist_dict['DIRT']['vals']), 
+                               np.concatenate(hist_dict['EXT']['vals'])])
+    tot_weights = np.concatenate([np.concatenate(hist_dict['MC']['weights']),
+                                  np.concatenate(hist_dict['DIRT']['weights']),
+                                  np.concatenate(hist_dict['EXT']['weights'])])
+    #just a nice outline of the whole thing
+    axes0.hist(
+            tot_vals,
+            weights = tot_weights,
+            histtype = 'step',
+            edgecolor = 'black',
+            **params
+            )
+    
+    #put error bars on the MC hists + EXT
+    mc_errs = np.sqrt(np.array(hist_dict['MC']['errs'])**2 + 
+                      np.array(hist_dict['DIRT']['errs'])**2 + 
+                      np.array(hist_dict['EXT']['errs'])**2)
+    bin_sizes = [(BINEDGES[i+1] - BINEDGES[i])/2 for i in range(len(BINCENTERS))]
+    axes0.errorbar(
+            BINCENTERS,
+            list(np.array(MC_ystacked_vals) + np.array(EXT_ystacked_vals)),
+            yerr = mc_errs,
+            xerr = bin_sizes,
+            fmt = 'None', ecolor = 'grey', alpha = 0.7, fillstyle='full'
+            )
+    #plot data    
+    axes0.errorbar(
+            BINCENTERS,
+            hist_dict['DATA']['vals'],
+            yerr = hist_dict['DATA']['errs'],
+            xerr = bin_sizes,
+            label='data: {}'.format(np.sum(hist_dict['DATA']['vals'])),
+            fmt='o', color='k', markersize=5
+            )
+    
     axes0.set_xlim([BINEDGES[0],BINEDGES[-1]])
-    axes0.set_title(title_name)
+    axes0.legend(loc='upper center', fontsize=10, ncol = 3, frameon = False)
+    axes0.set_title(title)
+    
     ##################################3
     ###Ratio Plot
-    ratio_bin_vals = data_bin_vals / ystacked_vals
-    ratio_bin_errs = np.sqrt((hist_dict['ERRS']/ystacked_vals)**2 + (data_errs/data_bin_vals)**2)
-    axes1 = plt.subplot(gs[1])
-    axes1.errorbar(BINCENTERS,ratio_bin_vals,yerr=ratio_bin_errs,fmt='o',color='k',markersize=5)
-    axes1.plot([BINEDGES[0],BINEDGES[-1]],[1,1],'--')
-    axes1.set_ylim([0,2])
+    axes1 = plt.subplot(gs[1], sharex=axes0)
+    #calculate some things
+    mc_tot = MC_ystacked_vals + EXT_ystacked_vals
+    dat_rat = hist_dict['DATA']['errs'] / hist_dict['DATA']['vals']
+    mc_rat = mc_errs / mc_tot    
+    ratio_bin_vals = hist_dict['DATA']['vals'] / mc_tot
+    ratio_bin_errs = ratio_bin_vals * np.sqrt(dat_rat**2 + mc_rat**2)
+    #plot it up
+    axes1.errorbar(
+            BINCENTERS,
+            ratio_bin_vals,
+            yerr = ratio_bin_errs,
+            xerr = bin_sizes,
+            fmt='o',color='k',markersize=5)
+    
+    ratio_error_mc = np.sqrt(2)*mc_rat
+    ratio_error_mc = np.insert(ratio_error_mc,0,ratio_error_mc[0])
+    axes1.fill_between(
+            BINEDGES,
+            1 - ratio_error_mc,
+            ratio_error_mc + 1,
+            step = "pre",
+            color = "grey",
+            alpha = 0.5
+            )
+    
+    axes1.axhline(1, linestyle="--", color="k")
+    axes1.set_ylim([0.5,1.5])
     axes1.set_ylabel(r'$\frac{BNB}{MC + EXT}$')
-    if VAR == 'costheta':
-        axes1.set_xlabel(r'cos($\theta$)')
-    elif VAR == 'trk_len_v':
-        axes1.set_xlabel('Track Length [cm]')
-    elif VAR == 'trk_distance':
-        axes1.set_xlabel('Vertex Distance [cm]')
-    else:
-        axes1.set_xlabel(VAR)
+    axes1.set_xlabel(xlabel)
     axes1.set_xlim([BINEDGES[0],BINEDGES[-1]])
     
-    fig.savefig(save_name, pad_inches=0, bbox_inches='tight')
+    
+    fig.tight_layout()
+    
+    return fig, axes0, axes1
+    
     
 def apply_subgroups(df):
     #remember that these dataframes get passed around 
@@ -300,7 +387,8 @@ def apply_cuts(DFs):
         ## CUTS
         #################################
         df['slice'] = df['nslice'] == 1
-        df['vtxFV'] = (df['nu_vtx_x']>FVx[0])&(df['nu_vtx_x']<FVx[1])&(df['nu_vtx_y']>FVy[0])&(df['nu_vtx_y']<FVy[1])&(df['nu_vtx_z']>FVz[0])&(df['nu_vtx_z']<FVz[1])
+        df['vtxFV'] = (df['reco_nu_vtx_x']>FVx[0])&(df['reco_nu_vtx_x']<FVx[1])&(df['reco_nu_vtx_y']>FVy[0])&(df['reco_nu_vtx_y']<FVy[1])&(df['reco_nu_vtx_z']>FVz[0])&(df['reco_nu_vtx_z']<FVz[1])
+        df['vtxFV1'] = (df['reco_nu_vtx_sce_x']>FVx1[0])&(df['reco_nu_vtx_sce_x']<FVx1[1])&(df['reco_nu_vtx_sce_y']>FVy1[0])&(df['reco_nu_vtx_sce_y']<FVy1[1])&(df['reco_nu_vtx_sce_z']>FVz1[0])&(df['reco_nu_vtx_sce_z']<FVz1[1])
         #topo score
         df['notopo'] = df['topological_score'] > 0.00
         df['topo06'] = df['topological_score'] > 0.06
@@ -372,9 +460,9 @@ def apply_cuts(DFs):
         df['contained25'] = contained
         #############################
         ## experimental y cut
-        df['vtx_y'] = (df['nu_vtx_y'] > (AVy[0] + 25))&(df['nu_vtx_y'] < (AVy[1] - 25))
+        df['vtx_y'] = (df['reco_nu_vtx_y'] > (AVy[0] + 25))&(df['reco_nu_vtx_y'] < (AVy[1] - 25))
         ############################
-        ## fiducial vertex
+        ## fiducial SCE corrected vertex
         
         ###############################
         #length cut
@@ -394,6 +482,11 @@ def apply_calcols(DFs):
         df['trk_pid_chimu_v'] = np.where(chimu==np.inf,99999,chimu)
         df['trk_pid_chimu_v'] = np.where(chimu==-np.inf,-99999,chimu)
         df['chirat'] = df['trk_pid_chipr_v']/df['trk_pid_chimu_v']
+        df['longest'] = df['trk_len_v'].groupby("entry").transform(max) == df['trk_len_v']
+        
+        #there seems ot be a 1 cm offset in the SCE correction in x direction
+#        print("correcting reco_nu_vtx_sce_x by 1 cm")
+#        df['reco_nu_vtx_sce_x'] = df['reco_nu_vtx_sce_x'] - 1
     
 def unique_entries(df,cuts=False,binmin=-99,binmax=99):
     if cuts != False:
@@ -422,17 +515,17 @@ def Eff(df,var,query,acceptance,bin_edges,absval=False,remvecs=False):
         if (acceptance != ''): bincut += ' and {}'.format(acceptance)
         df_tmp =  df.query(bincut) # cut on bin range for desired var.
         df_sub = df_tmp.query(query) # apply constraint 
-        print("query/bincut: {}/{}".format(query,bincut))
+        #print("query/bincut: {}/{}".format(query,bincut))
         if (df_tmp.shape[0] == 0): continue
         #count number of unique entry values
         nentries_sub = len(np.unique(df_sub.index.codes[0]))
         nentries_tmp = len(np.unique(df_tmp.index.codes[0]))
-        print("num/denom: {}/{}={}".format(nentries_sub,nentries_tmp,nentries_sub/nentries_tmp))
+        #print("num/denom: {}/{}={}".format(nentries_sub,nentries_tmp,nentries_sub/nentries_tmp))
         cum_num += nentries_sub
         cum_denom += nentries_tmp
-        print("cumulative num/denom: {}/{}".format(cum_num,cum_denom))
+        #print("cumulative num/denom: {}/{}".format(cum_num,cum_denom))
         eff = nentries_sub / float(nentries_tmp)
-        print(eff)
+        #print(eff)
         err = np.sqrt(eff*(1-eff)/nentries_tmp)
         bin_eff.append(eff)
         bin_err.append(err)
@@ -440,8 +533,34 @@ def Eff(df,var,query,acceptance,bin_edges,absval=False,remvecs=False):
         #print 'eff = %.02f @ bin = %.02f'%(eff,bin_centers[i])
     return np.array(bins),np.array(bin_eff),np.array(bin_err)
 
-def Pur(DFs, var, query, bin_edges):
-    ACCEPTANCE = 'nu_pdg==14 and ccnc==0 and OOFV==False and longest'
+def FV_Eff(df,acceptance,bin_edges,absval=False,remvecs=False):
+#     print(acceptance)
+    bin_centers = 0.5*(bin_edges[1:]+bin_edges[:-1])
+    bins = []
+    bin_eff = []
+    bin_err = []
+    
+    for i in range(len(bin_centers)):
+        fvcut = bin_centers[i]
+        
+        df_den = df.query(acceptance)
+        fvquery = 'reco_nu_vtx_sce_x > {} and reco_nu_vtx_sce_x < {}'.format(AVx[0]+fvcut,AVx[1]-fvcut)
+        fvquery += ' and reco_nu_vtx_sce_y > {} and reco_nu_vtx_sce_y < {}'.format(AVy[0]+fvcut,AVy[1]-fvcut)
+        fvquery += ' and reco_nu_vtx_sce_z > {} and reco_nu_vtx_sce_z < {}'.format(AVz[0]+fvcut,AVz[1]-50)
+        df_num = df_den.query(fvquery)
+
+        nentries_num = len(np.unique(df_num.index.codes[0]))
+        nentries_den = len(np.unique(df_den.index.codes[0]))
+        eff = nentries_num / float(nentries_den)
+        #print(eff)
+        err = np.sqrt(eff*(1-eff)/nentries_den)
+        bin_eff.append(eff)
+        bin_err.append(err)
+        bins.append(bin_centers[i])
+        #print 'eff = %.02f @ bin = %.02f'%(eff,bin_centers[i])
+    return np.array(bins),np.array(bin_eff),np.array(bin_err)
+
+def Pur(DFs, ACCEPTANCE, var, query, bin_edges):
     bin_centers = 0.5*(bin_edges[1:]+bin_edges[:-1])
     bins = []
     bins_pur = []
@@ -453,9 +572,16 @@ def Pur(DFs, var, query, bin_edges):
         binmin = bin_edges[i]
         binmax = bin_edges[i+1]
         bincut = '{} > @binmin and {} < @binmax'.format(var,var)
-        num_query = ACCEPTANCE+' and '+bincut+' and '+query
-        den_query = bincut+' and '+query
-        pur = unique_entries(df_nu,num_query,binmin,binmax)*scale_NU / (unique_entries(df_nu,den_query,binmin,binmax)*scale_NU + unique_entries(df_dirt,den_query,binmin,binmax)*scale_DIRT + unique_entries(df_ext,den_query,binmin,binmax)*scale_EXT)
+        num_query = ACCEPTANCE+' and '+bincut+' and '+query+' and longest'
+        den_query = bincut+' and '+query+' and longest'
+        num_scale = np.sum(df_nu.query(num_query)['weightSpline']*scale_NU-1)
+        den_scale_nu = np.sum(df_nu.query(den_query)['weightSpline']*scale_NU-1) #only for overlay sample
+        den_scale_dirt = np.sum(df_dirt.query(den_query)['weightSpline']*scale_DIRT-1)
+        try:
+            pur = (unique_entries(df_nu,num_query,binmin,binmax)+num_scale) / ((unique_entries(df_nu,den_query,binmin,binmax)+den_scale_nu) + (unique_entries(df_dirt,den_query,binmin,binmax)+den_scale_dirt) + (unique_entries(df_ext,den_query,binmin,binmax)*scale_EXT))
+            #pur = (unique_entries(df_nu,num_query,binmin,binmax)*scale_NU) / ((unique_entries(df_nu,den_query,binmin,binmax)*scale_NU) + (unique_entries(df_dirt,den_query,binmin,binmax)*scale_DIRT) + (unique_entries(df_ext,den_query,binmin,binmax)*scale_EXT))
+        except: 
+            pur = 0
         bins_pur.append(pur)
         bins.append(bin_centers[i])
     return np.array(bins), np.array(bins_pur)

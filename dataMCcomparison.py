@@ -5,9 +5,18 @@ Created on Tue Oct  8 18:53:26 2019
 
 @author: ryan
 """
-cut_branches = ['nslice', 'crtveto', 'topological_score', 'trk_pid_chipr_v', 'trk_pid_chimu_v', 'trk_end_[xyz]_v', 'trk_start_[xyz]_v', 'trk_score_v', 'trk_distance', 'trk_len_v', 'trk_energy_muon_v']
+cut_branches = ['nslice', 'crtveto', 'topological_score', 
+                'trk_pid_chipr_v', 'trk_pid_chimu_v', 
+                'trk_end_[xyz]_v', 'trk_start_[xyz]_v', 
+                'trk_score_v', 'trk_distance', 'trk_len_v', 
+                'trk_energy_muon_v',
+                'reco_nu_vtx_sce_[xyz]', 'reco_nu_vtx_[xyz]',
+                'trk_llr_pid_[uvy]_v', 'trk_llr_pid_v', 'trk_llr_pid_score_v',
+                'crthitpe', '_closestNuCosmicDist']
 MC_branches = ['weightSpline','backtracked_pdg','backtracked_e']
-other_branches = ['category','nu_pdg','slpdg','nu_e', 'trk_energy_muon_v', 'trk_theta_v', 'nu_vtx_[xyz]','true_nu_vtx_[xyz]','ccnc']
+other_branches = ['category','nu_pdg','slpdg',
+                  'nu_e', 'trk_energy_muon_v', 
+                  'trk_theta_v','true_nu_vtx_[xyz]','ccnc']
 all_branches = cut_branches + other_branches
 
 CATS = ['COSMIC','OOFV','NUMUCC','OTHER']
@@ -21,9 +30,13 @@ AVz = [0.1, 1036.9]
 #####POWER FUNCTIONS IN HELPER SCRIPT
 ###################################################################
 import helperRun3 as helper
+
+scale_NU = helper.scale_NU
+scale_EXT = helper.scale_EXT
+scale_DIRT = helper.scale_DIRT
+POT = helper.POT
+
 import codes
-def comp_DATAMC(DFs, VAR, BINEDGES, lw=25, take_longest=True, cuts=False, version=''):
-    return helper.comp_DATAMC(DFs,VAR,BINEDGES,lw=lw,take_longest=take_longest,cuts=cuts,version=version)
 
 def unique_entries(df,cuts=False):
     return helper.unique_entries(df,cuts=cuts)
@@ -44,13 +57,13 @@ except:
     import plotly.graph_objects as go
 
     #open up most modern samples
-    nu_file = uproot.open("ROOTtrees/harddrive/Run31e19/prodgenie_bnb_nu_uboone_overlay_mcc9.1_run3_G_reco2.root")
+    nu_file = uproot.open("ROOTtrees/harddrive/Run3_1107/prodgenie_bnb_nu_uboone_overlay_mcc9.1_v08_00_00_26_filter_run3_reco2_G_reco2.root")
     sel_nu = nu_file["nuselection"]["NeutrinoSelectionFilter"]
-    data_file = uproot.open("ROOTtrees/harddrive/Run31e19/data_bnb_optfilter_G1_1e19_mcc9.1_reco2.root")
+    data_file = uproot.open("ROOTtrees/harddrive/Run3_1107/data_bnb_mcc9.1_v08_00_00_25_reco2_G1_beam_good_reco2_1e19.root")
     sel_data = data_file["nuselection"]["NeutrinoSelectionFilter"]
-    ext_file = uproot.open("ROOTtrees/harddrive/Run31e19/data_extbnb_mcc9.1_v08_00_00_16_18_run3_G_reco2.root")
+    ext_file = uproot.open("ROOTtrees/harddrive/Run3_1107/data_extbnb_mcc9.1_v08_00_00_25_reco2_G_all_reco2.root")
     sel_ext = ext_file["nuselection"]["NeutrinoSelectionFilter"]
-    dirt_file = uproot.open("ROOTtrees/harddrive/Run31e19/prodgenie_bnb_dirt_overlay_run3_mcc9.1_v08_00_00_18_G_reco2.root")
+    dirt_file = uproot.open("ROOTtrees/harddrive/Run3_1107/prodgenie_bnb_dirt_overlay_mcc9.1_v08_00_00_26_run3_reco2_reco2.root")
     sel_dirt = dirt_file["nuselection"]["NeutrinoSelectionFilter"]
 SETUPDONE = True
 
@@ -79,93 +92,92 @@ except:
     print("applying calculated columns...")
     helper.apply_calcols(DFs)
 APPLYCALCOLS=False
-try:
-    if APPLYCUTS:
-        JUMPTOEXCEPT
-    else:
-        print("...not applying cuts")
-except:
-    print("applying cuts...") 
-    helper.apply_cuts(DFs)
-APPLYCUTS = False
+#try:
+#    if APPLYCUTS:
+#        JUMPTOEXCEPT
+#    else:
+#        print("...not applying cuts")
+#except:
+#    print("applying cuts...") 
+#    helper.apply_cuts(DFs)
+#APPLYCUTS = False
 #make categories
-try:
-    if APPLYCATS:
-        JUMPTOEXCEPT
-    else:
-        print("...not applying subcategories")
-except:
-    print("applying subcategories...")
-    helper.apply_subgroups(df_nu)
-APPLYCATS = False
+#try:
+#    if APPLYCATS:
+#        JUMPTOEXCEPT
+#    else:
+#        print("...not applying subcategories")
+#except:
+#    print("applying subcategories...")
+#    helper.apply_subgroups(df_nu)
+#APPLYCATS = False
 
 
 print("...done")
-plt.rcParams.update({'font.size': 22})
 
 ######################################################
 ### WORKSPACE BELOW FOR NEW FUNCTIONS
 #####################################################
 # MAKING DATA-MC PLOTS
 
+FVx = [5,251]
+FVy = [-110,110]
+FVz = [20,986]
+QUERY = 'nslice == 1'
+QUERY += ' and reco_nu_vtx_sce_x > {} and reco_nu_vtx_sce_x < {}'.format(FVx[0],FVx[1])
+QUERY += ' and reco_nu_vtx_sce_y > {} and reco_nu_vtx_sce_y < {}'.format(FVy[0],FVy[1])
+QUERY += ' and reco_nu_vtx_sce_z > {} and reco_nu_vtx_sce_z < {}'.format(FVz[0],FVz[1])
+QUERY += ' and (crtveto!=1 or crthitpe < 100.) and (_closestNuCosmicDist > 20.)'
+QUERY += ' and trk_len_v > 20'
+QUERY += ' and topological_score > 0.06'
+
+KIND = 'category' #interaction
+VAR = 'trk_len_v'
+XLABEL = 'Track Length [cm]'
+TITLE = 'MicroBooNE Preliminary {} POT'.format(POT)
+BINS = 30
+RANGE = (0, 500)
+VERSION = '1107_v26'
+SAVENAME = "DataMC_{}_{}_{}.jpg".format(VAR,KIND,VERSION)
+
+fig, axes0, axes1 = helper.comp_DATAMC(DFs,
+                                        VAR,
+                                        cuts = QUERY,
+                                        kind = KIND,
+                                        take_longest=True,
+                                        title = TITLE,
+                                        xlabel = XLABEL,
+                                        bins = BINS,
+                                        range = RANGE
+                                        )
 
 
+fig.savefig("/home/ryan/HEPPA/eLEE/plots/random/{}".format(SAVENAME), pad_inches=0, bbox_inches='tight')
+plt.show()
 
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and vtxFV', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and vtxFV and topo06', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and vtxFV and crtveto', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and muon', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and vtxFV and topo06 and len20', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and vtxFV and topo06 and len40', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and vtxFV and topo06 and crtveto', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and vtxFV and crtveto', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and vtxFV and contained25', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and vtxFV and topo06 and tscore80 and tdist4 and contained25', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and vtxFV and topo06 and tscore80 and tdist4 and crtveto', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and vtxFV and topo06 and tscore80 and tdist4', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and vtxFV and topo06 and len20 and tscore80 and tdist4 and crtveto', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and vtxFV and topo06 and len20 and crtveto', lw=25, take_longest=True, version='OFFICIAL')
+###################################### 
+#### Efficiency of the fiducial volume cuts
+
+#fig = plt.figure(figsize=(8,6))
+#scale_NU = 0.0107 
+#scale_EXT = 0.0718
+#scale_DIRT = 0.0342 
+#ACCEPTANCE = 'nu_pdg==14 and ccnc==0 and longest and topo06 and len20 and crtveto'
+#B = np.linspace(-0.5,20.5,22)
 #
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and topo15', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and contained10', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and contained25', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and topo06 and crtveto', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and crtveto', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and contained25', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and topo06 and vtx_y', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and topo06 and contained25 and vtx_y', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and topo06 and contained25 and crtveto', lw=25, take_longest=True, version='OFFICIAL')
-
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and len20', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='slice and len40', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'costheta',np.linspace(-1,1,30), cuts='basic', lw=25, take_longest=True, version='OFFICIAL')
-
-#comp_DATAMC(DFs,'trk_len_v',np.linspace(0,225,15), cuts='slice', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'trk_len_v',np.linspace(0,500,15), cuts='slice and vtxFV', lw=25, take_longest=True, version='OFFICIAL500cm')
-#comp_DATAMC(DFs,'trk_len_v',np.linspace(0,500,15), cuts='slice and vtxFV and topo06', lw=25, take_longest=True, version='OFFICIAL500cm')
-#comp_DATAMC(DFs,'trk_len_v',np.linspace(0,500,15), cuts='slice and vtxFV and topo06 and len20', lw=25, take_longest=True, version='OFFICIAL500cm')
-#comp_DATAMC(DFs,'trk_len_v',np.linspace(0,500,15), cuts='slice and vtxFV and topo06 and len20 and crtveto', lw=25, take_longest=True, version='OFFICIAL500cm')
-#comp_DATAMC(DFs,'trk_len_v',np.linspace(0,250,15), cuts='slice and vtxFV and topo06 and crtveto and len20', lw=25, take_longest=True, version='OFFICIAL')
+#centers,vals,errs = helper.FV_Eff(df_nu,ACCEPTANCE,B)
+#plt.errorbar(centers,vals,yerr=errs,fmt='o-',color='k')
 #
-#comp_DATAMC(DFs,'trk_pid_chipr_v',np.linspace(0,300,30), cuts='slice and vtxFV and topo06', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'trk_pid_chipr_v',np.linspace(0,300,30), cuts='slice and vtxFV', lw=25, take_longest=True, version='OFFICIAL')
-#
-#
-#comp_DATAMC(DFs,'topological_score',np.linspace(0,1,30), cuts='slice and vtxFV', lw=25, take_longest=True, version='OFFICIALpart')
-#comp_DATAMC(DFs,'topological_score',np.linspace(0,0.3,30), cuts='slice and vtxFV', lw=25, take_longest=True, version='OFFICIALpart')
-#comp_DATAMC(DFs,'topological_score',np.linspace(0,.3,30), cuts='slice and vtxFV and contained25', lw=25, take_longest=True, version='OFFICIALpart')
-#comp_DATAMC(DFs,'topological_score',np.linspace(0,.3,30), cuts='slice and crtveto', lw=25, take_longest=True, version='OFFICIALpart')
+#plt.xlabel('dist of FV from AV [cm]')
+#plt.ylabel(r'$\nu_{\mu}$ CC INC selection efficiency')
+#plt.ylim([0,1])
+#plt.grid()
+#plt.title(r'$\nu_{\mu}$ CC INC Selection Efficiency, BNB overlay',fontsize=25)
+#plt.legend(fontsize=12)
+#fig.patch.set_facecolor('silver')
+#plt.rcParams['savefig.facecolor']='silver'
+#plt.savefig("/home/ryan/HEPPA/eLEE_numu/plots/FVstudy/eff_{}.png".format("fveff"))
 
-#comp_DATAMC(DFs,'trk_energy_muon_v',np.linspace(0,2,30), cuts='slice', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'trk_energy_muon_v',np.linspace(0,2,30), cuts='slice and crtveto', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'trk_energy_muon_v',np.linspace(0,2,30), cuts='slice and topo06', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'trk_energy_muon_v',np.linspace(0,2,30), cuts='slice and contained25', lw=25, take_longest=True, version='OFFICIAL')
-
-#comp_DATAMC(DFs,'trk_distance',np.linspace(0,6,30), cuts='slice and vtxFV', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'trk_distance',np.linspace(0,6,30), cuts='slice and vtxFV and topo06', lw=25, take_longest=True, version='OFFICIAL')
-#
-#comp_DATAMC(DFs,'trk_score_v',np.linspace(0,1,30), cuts='slice and vtxFV and topo06', lw=25, take_longest=True, version='OFFICIAL')
-#comp_DATAMC(DFs,'trk_score_v',np.linspace(0,1,30), cuts='slice and vtxFV and topo06', lw=25, take_longest=True, version='OFFICIAL')
 
 ######################################
 #### EFFICIENCY CURVES        
@@ -176,27 +188,26 @@ plt.rcParams.update({'font.size': 22})
 scale_NU = 0.0107 
 scale_EXT = 0.0718
 scale_DIRT = 0.0342 
-ACCEPTANCE = 'nu_pdg==14 and ccnc==0 and longest and OOFV==False'
+ACCEPTANCE = 'nu_pdg==14 and ccnc==0 and longest'
 VAR = 'nu_e'
-B = np.linspace(0,3,2)
-B = np.array([0.,0.2,0.5,0.6,0.7,0.8,0.9,1.0,1.2,1.4,1.6,2.0,2.5,3.0])
-#B = np.linspace(0,5,30)
+B = np.linspace(0,3,25)
+#B = np.array([0.,0.2,0.5,0.6,0.7,0.8,0.9,1.0,1.2,1.4,1.6,2.0,2.5,3.0])
 
-cuts = 'slice and vtxFV'
-centers,vals,errs = helper.Eff(df_nu,VAR,cuts,ACCEPTANCE,B)
-plt.errorbar(centers,vals,yerr=errs,fmt='o-',color='black',label='{}'.format(cuts))
-pur = helper.overallPur(DFs,cuts)
-print("overall purity of {}: {}".format(cuts, pur))
-#
 #cuts = 'slice'
 #centers,vals,errs = helper.Eff(df_nu,VAR,cuts,ACCEPTANCE,B)
 #plt.errorbar(centers,vals,yerr=errs,fmt='o-',color='k',label='{}'.format(cuts))
 #pur = helper.overallPur(DFs,cuts)
 #print("overall purity of {}: {}".format(cuts, pur))
-
+#
 #cuts = 'slice and vtxFV'
 #centers,vals,errs = helper.Eff(df_nu,VAR,cuts,ACCEPTANCE,B)
-#plt.errorbar(centers,vals,yerr=errs,fmt='o-',color='y',label='{}'.format(cuts))
+#plt.errorbar(centers,vals,yerr=errs,fmt='o-',color='g',label='{}'.format(cuts))
+#pur = helper.overallPur(DFs,cuts)
+#print("overall purity of {}: {}".format(cuts, pur))
+#
+#cuts = 'slice and vtxFV1'
+#centers,vals,errs = helper.Eff(df_nu,VAR,cuts,ACCEPTANCE,B)
+#plt.errorbar(centers,vals,yerr=errs,fmt='o-',color='r',label='{}'.format(cuts))
 #pur = helper.overallPur(DFs,cuts)
 #print("overall purity of {}: {}".format(cuts, pur))
 
@@ -272,6 +283,12 @@ print("overall purity of {}: {}".format(cuts, pur))
 #pur = helper.overallPur(DFs,cuts)
 #print("overall purity of {}: {}".format(cuts, pur))
 #
+#cuts = 'slice and vtxFV1 and topo06 and len20 and crtveto'
+#centers,vals,errs = helper.Eff(df_nu,VAR,cuts,ACCEPTANCE,B)
+#plt.errorbar(centers,vals,yerr=errs,fmt='o-',color='y',label='{}'.format(cuts))
+#pur = helper.overallPur(DFs,cuts)
+#print("overall purity of {}: {}".format(cuts, pur))
+#
 #cuts = 'slice and vtxFV and topo06 and len20 and contained25'
 #centers,vals,errs = helper.Eff(df_nu,VAR,cuts,ACCEPTANCE,B)
 #plt.errorbar(centers,vals,yerr=errs,fmt='o-',color='g',label='{}'.format(cuts))
@@ -279,7 +296,7 @@ print("overall purity of {}: {}".format(cuts, pur))
 #print("overall purity of {}: {}".format(cuts, pur))
 ##
 #plt.xlabel('{}'.format(VAR))
-#plt.xlabel("True Neutrino Energy")
+#plt.xlabel("{}".format(VAR))
 #plt.ylabel(r'$\nu_{\mu}$ CC INC selection efficiency')
 #plt.ylim([0,1])
 #plt.grid()
@@ -287,38 +304,68 @@ print("overall purity of {}: {}".format(cuts, pur))
 #plt.legend(fontsize=12)
 #fig.patch.set_facecolor('silver')
 #plt.rcParams['savefig.facecolor']='silver'
-#plt.savefig("/home/ryan/Pictures/HEPPA/MicroBooNE/eLEE/Run3/eff_{}_{}.png".format(VAR,"finalselection"))
+#plt.savefig("/home/ryan/Pictures/HEPPA/MicroBooNE/eLEE/Run3/eff_{}_{}.png".format(VAR,"newFVstudy"))
 
 
 ########################################################
 ######## PURITY CURVES
 #fig = plt.figure(figsize=(8,6))
+
+AVx = [-1.55,254.8]
+AVy = [-115.53,117.47]
+AVz = [0.1, 1036.9]
+
+ 
+
 #efficiency vs neutrino energy
-B = np.linspace(0,225,20)
-VAR = 'trk_len_v'
+#B = np.linspace(0.5+116-20,0.5+116,21)
+ACCEPTANCE = 'nu_pdg==14 and ccnc==0'
+VAR = 'reco_nu_vtx_sce_z'
+ncms = 75
+#B = np.linspace(AVx[0] - 0.5,
+#                AVx[0] + ncms + 0.5,
+#                ncms+1)
+B = np.linspace(AVz[1] - 0.5 - ncms,
+                AVz[1] + 0.5,
+                ncms+1)
+label = 'FVpurity_zhigh'
+
+
+#cuts = 'slice'
+#centers,vals = helper.Pur(DFs,ACCEPTANCE,VAR,cuts,B)
+#plt.plot(centers,vals,'o-k',label='{}'.format(cuts))
 
 #cuts = 'slice and vtxFV'
 #centers,vals = helper.Pur(DFs,VAR,cuts,B)
-#plt.plot(centers,vals,'o-k',label='{}'.format(cuts))
+#plt.plot(centers,vals,'o-g',label='{}'.format(cuts))
 #
-#cuts = 'slice and vtxFV and topo06'
+#cuts = 'slice and vtxFV1'
 #centers,vals = helper.Pur(DFs,VAR,cuts,B)
 #plt.plot(centers,vals,'o-r',label='{}'.format(cuts))
-
-#cuts = 'slice and vtxFV and topo06 and len20'
+#
+#cuts = 'slice and vtxFV and topo06 and len20 and crtveto'
+#centers,vals = helper.Pur(DFs,VAR,cuts,B)
+#plt.plot(centers,vals,'o-b',label='{}'.format(cuts))
+#
+#cuts = 'slice and vtxFV1 and topo06 and len20 and crtveto'
 #centers,vals = helper.Pur(DFs,VAR,cuts,B)
 #plt.plot(centers,vals,'o-y',label='{}'.format(cuts))
-#
-#cuts = 'slice and vtxFV and topo06 and len20 and tscore80 and tdist4'
-#centers,vals = helper.Pur(DFs,VAR,cuts,B)
+##
+#cuts = 'slice and topo06'
+#centers,vals = helper.Pur(DFs,ACCEPTANCE,VAR,cuts,B)
 #plt.plot(centers,vals,'o-r',label='{}'.format(cuts))
 #
-#cuts = 'slice and vtxFV and topo06 and len20 and tscore80 and tdist4 and crtveto'
-#centers,vals = helper.Pur(DFs,VAR,cuts,B)
-#plt.plot(centers,vals,'o-c',label='{}'.format(cuts))
+#cuts = 'slice and topo06 and len20'
+#centers,vals = helper.Pur(DFs,ACCEPTANCE,VAR,cuts,B)
+#plt.plot(centers,vals,'o-y',label='{}'.format(cuts))
+#
+#cuts = 'slice and topo06 and len20 and crtveto'
+#centers,vals = helper.Pur(DFs,ACCEPTANCE,VAR,cuts,B)
+#plt.plot(centers,vals,'o-g',label='{}'.format(cuts))
+
 #
 #plt.xlabel('{}'.format(VAR))
-#plt.xlabel("Track Length [cm]")
+#plt.xlabel("{} [{}]".format(VAR,'cm'))
 #plt.ylabel(r'$\nu_{\mu}$ CC INC selection Purity')
 #plt.ylim([0,1])
 #plt.grid()
@@ -326,7 +373,7 @@ VAR = 'trk_len_v'
 #plt.legend(fontsize=15)
 #fig.patch.set_facecolor('silver')
 #plt.rcParams['savefig.facecolor']='silver'
-#plt.savefig("/home/ryan/Pictures/HEPPA/MicroBooNE/eLEE/Run3/pur_{}_{}.png".format(VAR,"len"))
+#plt.savefig("/home/ryan/Pictures/HEPPA/MicroBooNE/eLEE/Run3/FVStudy/pur_{}_{}.png".format(VAR,label))
 
 #######################################################
 ##### CUT FLOW TABLE

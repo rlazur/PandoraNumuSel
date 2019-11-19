@@ -40,6 +40,36 @@ def pdgtostring(code):
     else:
         return 'unknwnPDG'
 
+category_colors = {
+    4: "xkcd:light red",
+    5: "xkcd:brick",
+    2: "xkcd:cyan",
+    21: "xkcd:cerulean",
+    3: "xkcd:cobalt",
+    31: "xkcd:sky blue",
+    1: "xkcd:green",
+    10: "xkcd:mint green",
+    11: "xkcd:lime green",
+    111: "xkcd:goldenrod",
+    6: "xkcd:grey",
+    0: "xkcd:black"
+}
+
+category_labels = {
+    1: r"$\nu_e$ CC",
+    10: r"$\nu_e$ CC0$\pi$0p",
+    11: r"$\nu_e$ CC0$\pi$Np",
+    111: r"MiniBooNE LEE",
+    2: r"$\nu_{\mu}$ CC",
+    21: r"$\nu_{\mu}$ CC $\pi^{0}$",
+    3: r"$\nu$ NC",
+    31: r"$\nu$ NC $\pi^{0}$",
+    4: r"Cosmic",
+    5: r"Out. fid. vol.",
+    6: r"other",
+    0: r"No slice"
+}
+
 def categorytostring(cat):
     if cat == 1:
         return "nu_e_other"
